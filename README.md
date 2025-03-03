@@ -1,6 +1,6 @@
 # RGNMR
 This repository contains the `python` implementation of `RGNMR` (Robust Gauss-Newton Matrix Recovery Method). 
-
+`RGNMR` is a robust to outliers matrix completion method. 
 ## Usage
 To get familiar with `RGNMR` you can start by opening this notebook: 
 
