@@ -13,5 +13,9 @@ This directory contains the matlab implementation of RGNMR
     + set_defaults_options.m
     + solve_LSQR_problem.m
     + vectorize_observed_matrix.m
+  + test-utils : functions to generate synthetic data
+    + generate_mask.m
+    + generate_matrix.m
+    
 + RGNMR.m
 
