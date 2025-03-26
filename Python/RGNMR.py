@@ -5,18 +5,21 @@ from sklearn.preprocessing import normalize
 import gc
 from RGNMR_utils import *
 
-# initialization options
-INIT_WITH_SVD = 0
-INIT_WITH_RANDOM = 1
-INIT_WITH_USER_DEFINED = 2
-MAX_SIZE_FOR_VISUALIZATON_OF_ESTIMATED_MATRIX = 20 
+### Robust Gauss-Newton based algorithm for matrix completion with outliers###
+### Written by Eilon Vaknin Laufer and Boaz Nadler, 2025 ###
+### Based on the code of GNMR by Pini Zilber and Boaz Nadler ###
 
-def RGNMR_completion(X, omega, rank, num_of_outliers, 
+from RGNMR_utils import *
+
+
+# initialization options
+
+def RGNMR(X, omega, rank, num_of_outliers,
                      verbose=True, show_matrix=False,
-                     max_outer_iter=100, max_inner_iter=2000, 
+                     max_outer_iter=100, max_inner_iter=2000,
                      lsqr_init_tol=1e-1, lsqr_smart_tol=True,
                      init_option=INIT_WITH_SVD, init_U=None, init_V=None,
-                     stop_relRes=1e-16, stop_relDiff = -1, stop_relResDiff = -1, 
+                     stop_relRes=1e-16, stop_relDiff = -1, stop_relResDiff = -1,stop_Lambda_converged=False,
                      r_projection_in_iteration=False, return_a_list_of_estimators=False):
     """
     Run RGNMR algorithm for robust matrix completion
@@ -28,7 +31,7 @@ def RGNMR_completion(X, omega, rank, num_of_outliers,
     :param int max_outer_iter: Maximal number of outer iterations
     :param int max_inner_iter: Maximal number of inner iterations
     :param float lsqr_init_tol: initial tolerance of the LSQR solver
-    :param bool lsqr_smart_tol: if true the lsqr tolorence decreases at each iteration by a factor of 1e-1 
+    :param bool lsqr_smart_tol: if true the lsqr tolorence decreases at each iteration by a factor of 1e-1
     :param int init_option: how to initialize U and V (INIT_WITH_SVD, INIT_WITH_RAND, or INIT_WITH_USER_DEFINED)
     :param ndarray init_U: U initialization (n1,rank), used in case init_option==INIT_WITH_USER_DEFINED
     :param ndarray init_V: V initialization (n2,rank), used in case init_option==INIT_WITH_USER_DEFINED
@@ -40,122 +43,51 @@ def RGNMR_completion(X, omega, rank, num_of_outliers,
     :return: GNMR's estimate, final iteration number, convergence flag and all relRes
     """
 
+    # set the initial estimates  U, V, X_hat, D
+    U, V, L_hat, D = init_RGNMR(init_option, X, omega, rank, num_of_outliers, init_U, init_V)
 
-    n1, n2 = X.shape
-    num_visible_entries = np.count_nonzero(omega)
-    visible_ratio = num_visible_entries / (n1*n2)
-    
-    # in order to dispaly the matrix in_Python needs to be True
-    in_IPython = 'get_ipython' in globals()
-
-    # set the initial estimate
-    if init_option == INIT_WITH_SVD:
-      # applies a thresholding operator on X then applies svd 
-      (U, _, V) = linalg.svds(threshold_operator(torch.from_numpy(X), omega, num_of_outliers/omega.sum()).numpy(), k=rank, tol=1e-16)
-      V = V.T
-    elif init_option == INIT_WITH_RANDOM:
-      U = np.random.randn(n1, rank)
-      V = np.random.randn(n2, rank)
-      U = np.linalg.qr(U)[0]
-      V = np.linalg.qr(V)[0]
-    else:
-      U = init_U
-      V = init_V
 
     # generate sparse indices to accelerate future operations
-    sparse_matrix_rows, sparse_matrix_columns = generate_sparse_matrix_entries(omega, rank, n1, n2)
-
-    # generate (constant) b for the least squares problem
-    b = generate_b(X, omega)
+    sparse_matrix_rows, sparse_matrix_columns = generate_sparse_matrix_entries(omega, rank)
 
     # before iterations
     early_stopping_flag = False
-    relRes = 1
     current_tol = lsqr_init_tol
-    all_relRes = [relRes]
-    all_estimators = []
-    best_relRes = np.max(np.abs(X))
-    X_hat = U @ V.T        # intial estimate
-    X_hat_best_2r = X_hat  # stores best intermediate rank 2r estimate
-
-    # choose the set of non corrupted entries based on the initial estimate
-    vectorize_X_hat = generate_b(X_hat, omega)
-    D = binary_weights(vectorize_X_hat, b, num_of_outliers)
+    all_relRes = [1]
+    iter_num = 0
+    iterations_since_Lambda_changed = 0
 
     # iterations
-    iter_num = 0
     while iter_num < max_outer_iter and not early_stopping_flag:
+
         iter_num += 1
+        L_hat_previous = L_hat
+        D_previous = D
 
-        ## build the least of squares problem
-        # A is a sparse matrix of shape (|Omega|,(n1+n2)*rank)
-        A = generate_sparse_A(U, V, omega, sparse_matrix_rows, sparse_matrix_columns, num_visible_entries, n1, n2, rank)
-        # b is a vecorization of the non zero entries in omega*(X  + U@V.T) with shape (|omega|,)  
-        b = generate_b(X + U @ V.T, omega)
-
-        # solve the least squares problem, x is the solution , res = ||DAx - Db||
-        x, _, _, res = linalg.lsqr(D@A, D@b, atol=current_tol, btol=current_tol, iter_lim=max_inner_iter)[:4]
+        # solve the least of squares problem
+        U, V, L_hat, entriwise_residuals, relRes = solve_LSQR_problem(X, U, V, omega, D, sparse_matrix_rows, sparse_matrix_columns, current_tol, max_inner_iter)
 
         # estimate the set of non corupted entries
-        D = binary_weights(A@x, b, num_of_outliers)
-        
-        # A can get very large, we therefore free memory by deleting it 
-        del A
-        gc.collect()
-        
-        # obtain new estimates for U and V
-        # x = convert_x_representation(x, rank, n1, n2)
-        U_next, V_next = get_U_V_from_solution(x, rank, n1, n2)
+        D = binary_weights(entriwise_residuals, num_of_outliers)
 
-        # get new estimate and calculate corresponding error
-        relRes = res / np.linalg.norm(D@b)
-        X_hat_previous = X_hat
-        X_hat_2r = U @ V_next.T + U_next @ V.T - U @ V.T
-        if r_projection_in_iteration:
-          (U_r, Sigma_r, V_r) = linalg.svds(X_hat_2r, k=rank, tol=1e-17)
-          X_hat = U_r @ np.diag(Sigma_r) @ V_r
-        else:
-          X_hat = U_next @ V_next.T
-        X_hat_diff =  np.linalg.norm(X_hat - X_hat_previous, ord='fro') / np.linalg.norm(X_hat, ord='fro')
-
-        all_relRes.append(relRes)
-        if relRes < best_relRes:
-          best_relRes = relRes
-          X_hat_best_2r = X_hat_2r
-
-
-        # update U, V
-        U = U_next
-        V = V_next
-
-        # report
-        if show_matrix and in_IPython and max(n1, n2) < MAX_SIZE_FOR_VISUALIZATON_OF_ESTIMATED_MATRIX:
-          time.sleep(2)
-          display.clear_output(wait=True)
-          (U_r, Sigma_r, V_r) = linalg.svds(X_hat_2r, k=rank, tol=1e-17)
-          current_estimate =  U_r @ np.diag(Sigma_r) @ V_r
-          print_latex(f"L_{{{iter_num}}} = " + matrix_to_latex(current_estimate, np.zeros_like(X_hat), np.ones_like(X_hat)))
-        if verbose:
-          print("[INSIDE GNMR] iter: " + str(iter_num) + ", relRes: " + str(relRes))
-
-        # we search for a more accurate solution at each iteration by decreasing the tolorence for error
+        iterations_since_Lambda_changed = (iterations_since_Lambda_changed + 1) * ((D != D_previous).nnz == 0)
+        # decrease the tolorence for error
         if lsqr_smart_tol:
           current_tol =  current_tol*1e-1
 
+        # report RGNMR progression
+        report_RGNMR_progression(L_hat, show_matrix, verbose, iter_num, relRes)
+        all_relRes.append(relRes)
+
         # check early stopping criteria
-        if stop_relRes > 0:
-          early_stopping_flag |= relRes < stop_relRes
-        if stop_relDiff > 0:
-          early_stopping_flag |= X_hat_diff < stop_relDiff
-        if stop_relResDiff > 0:
-          early_stopping_flag |= np.abs(relRes / all_relRes[-2] - 1) < stop_relResDiff
-        if verbose and early_stopping_flag:
-          print("[INSIDE GNMR] early stopping")
+        early_stopping_flag = check_early_stopping_criteria(early_stopping_flag, relRes, stop_relRes, all_relRes, stop_relDiff, L_hat, L_hat_previous,
+                                                            stop_Lambda_converged, iterations_since_Lambda_changed, stop_relResDiff, verbose)
+
 
 
     # return
     convergence_flag = iter_num < max_outer_iter
-    (U_r, Sigma_r, V_r) = linalg.svds(X_hat_best_2r, k=rank, tol=1e-17)
-    X_hat = U_r @ np.diag(Sigma_r) @ V_r
+    (U_r, Sigma_r, V_r) = linalg.svds(L_hat, k=rank, tol=1e-17)
+    L_hat = U_r @ np.diag(Sigma_r) @ V_r
 
-    return X_hat, iter_num, convergence_flag, all_relRes
+    return L_hat, iter_num, convergence_flag, all_relRes, iterations_since_Lambda_changed
