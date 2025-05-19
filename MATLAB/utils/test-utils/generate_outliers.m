@@ -1,25 +1,25 @@
-function [H, omega_2d, reject] = generate_outliers(W, w, gamma, rank)
+function [H, lambda_star_2d, reject] = generate_outliers(mask, omega, alpha, rank)
     %% Input
-    % W : (mxn) sparse matrix 
+    % mask - n1xn2 sparse matrix 
     %     ones at chosen  entries and
     %     zeros at unchosen  entries.
-    % w : all indices of chosen enries 
-    % gamma : probabilty to choose a an outlier
+    % omega - all indices of chosen enries in mask 
+    % alpha - fraction of outliers 
 
     %% Output
     reject = 1;
     reject_number = 0;
     reject_max = 10;
-    m = size(W,1);
-    n = size(W, 2);
+    n1 = size(mask,1);
+    n2 = size(mask, 2);
     while(reject == 1)
-        omega = (sort(randperm(size(w, 1),floor(gamma*size(w, 1)))))';
-        omega_2d = w(omega,:);
-        i_Omega = omega_2d(:,1);
-        j_Omega = omega_2d(:,2);
-        H = sparse(i_Omega,j_Omega,ones(floor(gamma*size(w, 1)),1),m,n);
-        nr_entr_col_W_H = sum(W-H,1)';
-        nr_entr_row_W_H = sum(W-H,2);
+        lambda_star = (sort(randperm(size(omega, 1), floor(alpha*size(omega, 1)))))';
+        lambda_star_2d = omega(lambda_star,:);
+        i_lambda_star = lambda_star_2d(:,1);
+        j_lambda_star = lambda_star_2d(:,2);
+        H = sparse(i_lambda_star,j_lambda_star,ones(floor(alpha*size(omega, 1)),1),n1,n2);
+        nr_entr_col_W_H = sum(mask-H,1)';
+        nr_entr_row_W_H = sum(mask-H,2);
 
         if (isempty(find(nr_entr_col_W_H<rank,1)) == 1) && (isempty(find(nr_entr_row_W_H<rank,1)) == 1)
             reject = 0;

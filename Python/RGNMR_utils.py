@@ -71,6 +71,7 @@ def generate_sparse_matrix_entries(omega, rank):
     return row_indices, col_indices.flatten()
 
 def init_RGNMR(init_option, X, omega, rank, num_of_outliers, init_U= None, init_V= None):
+    n1, n2 = X.shape
     # set the initial estimate
     if init_option == INIT_WITH_SVD:
       # applies a thresholding operator on X then applies svd
@@ -85,10 +86,10 @@ def init_RGNMR(init_option, X, omega, rank, num_of_outliers, init_U= None, init_
       U = init_U
       V = init_V
 
-    # intial estimate
+    # initial estimate
     L_hat = U @ V.T
 
-    # construct an inital estimate of the  set of non corrupted entries
+    # construct an initial estimate of the  set of non-corrupted entries
     vectorize_X = vectorize_observed_matrix(X, omega)
     vectorize_X_hat = vectorize_observed_matrix(L_hat, omega)
     D = binary_weights(np.abs(vectorize_X_hat - vectorize_X), num_of_outliers)
@@ -145,7 +146,6 @@ def get_U_V_from_solution(x, rank, n1, n2):
     return UT.T, VT.T
 
 def solve_LSQR_problem(X, U, V, omega, D, sparse_matrix_rows, sparse_matrix_columns, tol, max_iterations):
-
   """
   At iteration t RGNMR solves
               (U_next, V_next) = min_{U^, V^} ||U@V^.T + U^@V.T - U@V.T - X||_{F(\Omega \cap \Lambda_{t})}
@@ -196,16 +196,10 @@ def solve_LSQR_problem(X, U, V, omega, D, sparse_matrix_rows, sparse_matrix_colu
 
   return U_next, V_next, L_hat, entriwise_residuals, relRes
 
-def report_RGNMR_progression(X_hat_2r, show_matrix, verbose, iter_num, relRes):
-  """in_IPython = 'get_ipython' in globals()
-  if show_matrix and in_IPython and max(n1, n2) < MAX_SIZE_FOR_VISUALIZATON_OF_ESTIMATED_MATRIX:
-          time.sleep(2)
-          display.clear_output(wait=True)
-          (U_r, Sigma_r, V_r) = linalg.svds(X_hat_2r, k=rank, tol=1e-17)
-          current_estimate =  U_r @ np.diag(Sigma_r) @ V_r
-          print_latex(f"L_{{{iter_num}}} = " + matrix_to_latex(current_estimate, np.zeros_like(X_hat_2r), np.ones_like(X_hat_2r)))"""
+def report_RGNMR_progression( verbose, iter_num, relRes):
+
   if verbose:
-    print("[INSIDE GNMR] iter: " + str(iter_num) + ", relRes: " + str(relRes))
+    print("[INSIDE RGNMR] iter: " + str(iter_num) + ", relRes: " + str(relRes))
 
 def check_early_stopping_criteria(early_stopping_flag, relRes, stop_relRes, all_relRes,
                                   stop_relDiff, X_hat, X_hat_previous, stop_Lambda_converged, iterations_since_Lambda_changed,
@@ -222,5 +216,5 @@ def check_early_stopping_criteria(early_stopping_flag, relRes, stop_relRes, all_
     early_stopping_flag |= np.abs(relRes / all_relRes[-2] - 1) < stop_relResDiff
 
   if verbose and early_stopping_flag:
-    print("[INSIDE GNMR] early stopping")
+    print("[INSIDE RGNMR] early stopping")
   return early_stopping_flag

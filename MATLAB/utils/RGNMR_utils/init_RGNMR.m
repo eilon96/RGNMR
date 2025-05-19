@@ -1,83 +1,71 @@
-function [U, V, L_hat, D] = init_RGNMR(init_option, U_init, V_init, X, omega, rank, outliers_num)
-    
-    %
-    % This method initialize the estimates used by RGNMR
-    %%  INPUT
-    %   init_option = 0 for SVD, 1 for random, 2 for opts.init_U, opts.init_V
-    %   U_init = initial U if init_option is 2
-    %   V_init = initial V if init_option is 2
-    %   X = the observed matrix 
-    %   omega = list of pairs (i,j) of the observed entries
-    %   rank = the rank of the target matrix
-    %   outliers_num = the expected number of outlires
-    %
-    %%  OUTPUT
-    %   U = initial U
-    %   V = initial V
-    %   L_hat = initial estimate of the target matrix
-    %   D = a diagonal one-zero matrix, represents the initial estimate of
-    %   the set of non corrupted entries, see solve_LSQR_problem for
-    %   details.
+function [U, V, L_hat, Lambda] = init_RGNMR(init_option, U_init, V_init, X, omega, rank, outliers_num, test)
+    %% INPUT:
+    % init_option - if 0 apllay threshold operator then use spectral initilaization.
+    %               if 1 use random initialization 
+    %               if 2 use user-defined matrices U_init and V_init
+    % X - observed matrix
+    % omega - list of pairs (i,j) of the observed entries
+    % rank - rank of the target matrix
+    % outlier_num - an upper bound on the number of outliers in X
+    % test - optinal, for testing
 
+    %% OUTPUT:
+    % U, V - initialization for factor matrices
+    % L_hat - initial estimate, UV', of the target matrix L*
+    % Lambda - projection matrix to the estimated set of non corrupted entries
     
     [n1, n2] = size(X);
-
-    %% initialize U and V (of sizes n1 x rank and n2 x rank)
+    %% initialize U and V (of sizes n1 x r and n2 x r)
     if init_option == 0
-        % initialization by SVD of observed matrix, after applying a
+        % initialization by rank-r SVD of observed matrix, after applying a
         % threshold operator (remove_top_fraction)
-        [U, ~, V] = svds(remove_top_fraction(X, outliers_num/(n1*n2)), rank);
+        [U, ~, V] = svds(remove_top_fraction(X,  2*outliers_num/(n1*n2)), rank);
     elseif init_option == 1
         % initialization by random orthogonal matrices
-        Z = randn(n1,r);
+        Z = randn(n1,rank);
         [U, ~, ~] = svd(Z,'econ'); 
-        Z = randn(n2,r);
+        Z = randn(n2,rank);
         [V, ~, ~] = svd(Z,'econ'); 
     else
-        % initazliation by user-defined matrices
+        % initiazliation by user-defined matrices
         U = U_init;
         V = V_init; 
     end
-    % construct initial estimate
+    
+    % compute intial estimate of L*
     L_hat = U * V';
 
     % vectorize the input matrix X
     vector_X = vectorize_observed_matrix(X, omega);
-    % vectorize the initial estimator
+    % vectorize the inital estimator
     vector_L_hat = vectorize_observed_matrix(L_hat, omega);
-    % construct D
-    D = binary_weights(abs(vector_L_hat - vector_X), outliers_num);
+    % construct an estimate of the set of non corrupted entries
+    Lambda = binary_weights(abs(vector_L_hat - vector_X), outliers_num, omega, test);
 end
 
+function A = remove_top_fraction(A, alpha)
 
+    %% Input:
+    % A - a matrix of size n1 X n2
+    % alpha - upper bound on the fraction of corrupted entries
 
-function X = remove_top_fraction(X, alpha)
-    %
-    %   This function is a hard thresholding operator, used at initialization of
-    %   RGNMR. The function removes the oversized elements in the observed
-    %   matrix X. 
-    %
-    %%  INPUT 
-    %   X = the observed matrix
-    %   alpha = the fraction of entries to remove from each row and column
-    %   
-    %%  OUTPUT
-    %   X = the observed matrix after the thresholding operator 
-    %   
+    %% Output:
+    % zeros the alpha*n2 largest entries in each row.
+    % zeros the alpha*n1 largest entries in each column.
 
-    [m, n] = size(X);
-    num_row = max(1, round(alpha * n)); % Number of elements to remove per row
-    num_col = max(1, round(alpha * m)); % Number of elements to remove per column
-    
-    % apply thresholding to each row
-    for i = 1:m
-        [~, idx] = maxk(abs(X(i, :)), num_row); % find indices of top values in row
-        X(i, idx) = 0; % set them to zero
+    [n1, n2] = size(A);
+    num_row = max(1, round(alpha * n2));
+    num_col = max(1, round(alpha * n1));
+
+    % remove the largest magnitude entries in each row
+    for i = 1:n1
+        [~, idx] = sort(abs(A(i, :)), 'descend');
+        A(i, idx(1:num_row)) = 0;
     end
-    
-    % apply thresholding to each column
-    for j = 1:n
-        [~, idx] = maxk(abs(X(:, j)), num_col); % find indices of top values in column
-        X(idx, j) = 0; % set them to zero
+
+    % remove the largest magnitude entries in each column
+    for j = 1:n2
+        [~, idx] = sort(abs(A(:, j)), 'descend');
+        A(idx(1:num_col), j) = 0;
     end
 end

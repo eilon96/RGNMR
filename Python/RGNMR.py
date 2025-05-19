@@ -5,19 +5,12 @@ from sklearn.preprocessing import normalize
 import gc
 from RGNMR_utils import *
 
-### Robust Gauss-Newton based algorithm for matrix completion with outliers###
-### Written by Eilon Vaknin Laufer and Boaz Nadler, 2025 ###
-### Based on the code of GNMR by Pini Zilber and Boaz Nadler ###
-
-from RGNMR_utils import *
-
-
 # initialization options
 
 def RGNMR(X, omega, rank, num_of_outliers,
                      verbose=True, show_matrix=False,
                      max_outer_iter=100, max_inner_iter=2000,
-                     lsqr_init_tol=1e-1, lsqr_smart_tol=True,
+                     lsqr_init_tol=1e-1, lsqr_smart_tol=False,
                      init_option=INIT_WITH_SVD, init_U=None, init_V=None,
                      stop_relRes=1e-16, stop_relDiff = -1, stop_relResDiff = -1,stop_Lambda_converged=False,
                      r_projection_in_iteration=False, return_a_list_of_estimators=False):
@@ -56,6 +49,7 @@ def RGNMR(X, omega, rank, num_of_outliers,
     all_relRes = [1]
     iter_num = 0
     iterations_since_Lambda_changed = 0
+    restart = True
 
     # iterations
     while iter_num < max_outer_iter and not early_stopping_flag:
@@ -70,13 +64,20 @@ def RGNMR(X, omega, rank, num_of_outliers,
         # estimate the set of non corupted entries
         D = binary_weights(entriwise_residuals, num_of_outliers)
 
+        if relRes > 1e-5 and iter_num > 50 and restart:
+            v = D*vectorize_observed_matrix(X, omega)
+            X_tag = np.zeros_like(X)
+            X_tag[omega==1] = v
+            U, V, L_hat, D = init_RGNMR(init_option, X_tag, omega, rank, num_of_outliers, init_U, init_V)
+            restart = False
+
         iterations_since_Lambda_changed = (iterations_since_Lambda_changed + 1) * ((D != D_previous).nnz == 0)
         # decrease the tolorence for error
         if lsqr_smart_tol:
           current_tol =  current_tol*1e-1
 
         # report RGNMR progression
-        report_RGNMR_progression(L_hat, show_matrix, verbose, iter_num, relRes)
+        report_RGNMR_progression(verbose, iter_num, relRes)
         all_relRes.append(relRes)
 
         # check early stopping criteria

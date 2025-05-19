@@ -1,4 +1,4 @@
-function [H,omega_2d,flag] = generate_mask(n1,n2,nv,r,max_resapmles)
+function [mask,omega_2d,flag] = generate_mask(n1,n2,nv,r,max_resapmles)
 
 %%% code taken from MatrixIRLS by Christian Kuemmerle %%%
 
@@ -31,9 +31,9 @@ while (reject==1)
     i_Omega=mod(omega,n1);
     i_Omega(i_Omega==0)=n1;
     j_Omega=floor((omega-1)/n1)+1;
-    H = sparse(i_Omega,j_Omega,ones(nv,1),n1,n2);
-    nr_entr_col = sum(H,1)';
-    nr_entr_row = sum(H,2);
+    mask = sparse(i_Omega,j_Omega,ones(nv,1),n1,n2);
+    nr_entr_col = sum(mask,1)';
+    nr_entr_row = sum(mask,2);
 
     if (isempty(find(nr_entr_row<r+1,1)) == 0) || (isempty(find(nr_entr_col<r+1,1)) == 0)
         rejec_counter=rejec_counter+1;
@@ -48,9 +48,7 @@ while (reject==1)
         break
     end
 end
-%if rejec_counter >= 1
-%    disp(['Rejection counter of sampled matrix completion masks with ',num2str(m),' entries: ',num2str(rejec_counter)]);
-%end
+
 
 omega_2d = zeros(nv,2);
 [omega_2d(:,1), omega_2d(:,2)] = ind2sub([n1,n2],omega);

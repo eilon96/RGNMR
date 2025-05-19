@@ -1,20 +1,30 @@
-function [D] = binary_weights(entriwise_residulas, number_of_outliers)
-    % binary_weights returns a diagonal matrix D with ones and zeros on the diagonal.
-    % A row has zero if it is one of the p largest rows in abs(a - b).
+function [Lambda, missed_outliers] = binary_weights(entriwise_residulas, num_of_outliers, omega, test)
     %
-    % Inputs:
-    %   a: a vector
-    %   b: a vector 
-    %   p: Number of largest rows to consider
+    % binary_weights returns a diagonal matrix Lambda with ones and zeros on the diagonal.
+    % Lambda(i,i) = 0 iff entriwise_residulas(i) is one of the num_of_outliers 
+    % largest values in entriwise_residulas.
     %
-    % Output:
-    %   D: Diagonal matrix with ones and zeros on the diagonal
+    %% INPUT:
+    %   entriwise_residulas - residuals vectors
+    %   num_of_outliers: Number of largest rows to consider
+    %
+    %% OUTPUT:
+    %   Lambda: Diagonal matrix with ones and zeros on the diagonal
 
-    % Get the indices of the p largest rows (in absolute values)
-    [~, indices] = sort(entriwise_residulas, 'descend');
     
-    indices_p = indices(1:number_of_outliers);
+    missed_outliers = 0;
+    % Get the num_of_outliers indices with largest residuals 
+    [C, indices] = sort(entriwise_residulas, 'descend');
+    
+    indices_of_outliers = indices(1:num_of_outliers);
+    
+    % if in test print number of missed outliers
+    if isstruct(test)
+        fprintf("missed outliers %d\n", length(setdiff(test.s, omega(indices_of_outliers, :),'rows')))
+        missed_outliers = length(setdiff(test.s, omega(indices_of_outliers, :), 'rows'));
+    end
 
-    D = speye(length(entriwise_residulas));
-    D(indices_p, indices_p) = 0;
+    %Construct the diagonal matrix Lambda with ones and zeros
+    Lambda = speye(length(entriwise_residulas));
+    Lambda(indices_of_outliers, indices_of_outliers) = 0;
 end

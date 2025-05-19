@@ -1,6 +1,7 @@
 # README
-This folder contatins 4 files:   
-+ RGNMR.py - A file with the python implemenattion of RGNMR
-+ RGNMR_utils.py - A file with auxiliary methods used by RGNMR 
-+ Number_of_Outliers_Estimator.py - An implementation of our method to estimate the number of outliers
-+ generate_data.py - methods to generate synthetic data 
+This folder contains 5  additional files:   
++ RGNMR.py - A python implementation of RGNMR
++ RGNMR_utils.py - Auxiliary methods used by RGNMR 
++ Number_of_Outliers_Estimator.py - A method that upper bounds the number of corrupted entries
++ generate_data.py  - The methods that generates the simulations
++ test.py - A single simulation test for RGNMR
