@@ -21,4 +21,5 @@ This directory contains the matlab implementation of RGNMR
     + power_law_mask.m
     
 + RGNMR.m
-
++ RGNMR_DEMO.m
++ RGNMR_BS_DEMO.m
