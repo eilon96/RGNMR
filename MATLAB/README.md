@@ -1,4 +1,4 @@
-This directory contains the matlab implementation of RGNMR, and demo files to demonstrate usage
+This directory contains the matlab implementation of RGNMR and demo files to demonstrate usage
 # Directory Tree
 + utils
   + utils_RGNMR : functions used by RGNMR
