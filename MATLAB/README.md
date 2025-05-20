@@ -9,6 +9,7 @@ This directory contains the matlab implementation of RGNMR
       + generate_val_A.mexw64
     + binary_weights.m
     + check_early_convergence.m
+    + estimate_number_of_outliers.m
     + init_RGNMR.m
     + set_defaults_options.m
     + solve_LSQR_problem.m
@@ -16,6 +17,8 @@ This directory contains the matlab implementation of RGNMR
   + test-utils : functions to generate synthetic data
     + generate_mask.m
     + generate_matrix.m
+    + generate_outliers.m
+    + power_law_mask.m
     
 + RGNMR.m
 
